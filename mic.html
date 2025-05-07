@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mic Visualizer + VU Meter</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background-color: white;}
+    canvas { border: 1px solid #ccc; margin-top: 10px; display: block; }
+  </style>
+</head>
+<body>
+  <h1>Microphone Visualizer</h1>
+  <label for="micSelect">Select Microphone:</label>
+  <select id="micSelect"></select>
+  <p id="status">Initializing...</p>
+
+  <canvas id="waveform" width="600" height="100"></canvas>
+  <canvas id="vumeter" width="600" height="20"></canvas>
+
+  <script>
+    const micSelect = document.getElementById('micSelect');
+    const status = document.getElementById('status');
+    const waveformCanvas = document.getElementById('waveform');
+    const vuCanvas = document.getElementById('vumeter');
+    const waveformCtx = waveformCanvas.getContext('2d');
+    const vuCtx = vuCanvas.getContext('2d');
+
+    let audioContext, analyser, dataArray, vuArray, mediaStream;
+
+    function drawWaveform() {
+      if (!analyser) return;
+      requestAnimationFrame(drawWaveform);
+
+      analyser.getByteTimeDomainData(dataArray);
+      waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+      waveformCtx.beginPath();
+
+      const sliceWidth = waveformCanvas.width / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * waveformCanvas.height / 2;
+        i === 0 ? waveformCtx.moveTo(x, y) : waveformCtx.lineTo(x, y);
+        x += sliceWidth;
+      }
+
+      waveformCtx.lineWidth = 2;
+      waveformCtx.strokeStyle = '#007acc';
+      waveformCtx.stroke();
+    }
+
+    function drawVUMeter() {
+      if (!analyser) return;
+      requestAnimationFrame(drawVUMeter);
+
+      analyser.getByteFrequencyData(vuArray);
+      const avg = vuArray.reduce((a, b) => a + b, 0) / vuArray.length;
+      const level = Math.min(avg / 256, 1); // Normalize
+
+      vuCtx.clearRect(0, 0, vuCanvas.width, vuCanvas.height);
+      vuCtx.fillStyle = level > 0.7 ? 'red' : level > 0.4 ? 'orange' : 'green';
+      vuCtx.fillRect(0, 0, vuCanvas.width * level, vuCanvas.height);
+    }
+
+    async function startMic(deviceId) {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: deviceId ? { exact: deviceId } : undefined }
+        });
+        mediaStream = stream;
+        status.textContent = "Microphone access granted.";
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+
+        dataArray = new Uint8Array(analyser.fftSize);
+        vuArray = new Uint8Array(analyser.frequencyBinCount);
+
+        source.connect(analyser);
+        drawWaveform();
+        drawVUMeter();
+      } catch (err) {
+        status.textContent = `Error accessing microphone: ${err.name}`;
+      }
+    }
+
+    async function listMicrophones() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices.filter(d => d.kind === 'audioinput');
+
+      micSelect.innerHTML = '';
+      mics.forEach((mic, i) => {
+        const option = document.createElement('option');
+        option.value = mic.deviceId;
+        option.text = mic.label || `Microphone ${i + 1}`;
+        micSelect.appendChild(option);
+      });
+
+      if (mics.length > 0) {
+        await startMic(mics[0].deviceId);
+      } else {
+        status.textContent = 'No microphones found.';
+      }
+    }
+
+    micSelect.addEventListener('change', () => {
+      const selectedId = micSelect.value;
+      startMic(selectedId);
+    });
+
+    // Request permission and list devices
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(() => {
+      listMicrophones();
+    }).catch(err => {
+      status.textContent = `Permission denied or no microphone: ${err.name}`;
+    });
+  </script>
+</body>
+</html>

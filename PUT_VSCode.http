@@ -1,0 +1,48 @@
+
+@IPAddressPlayer = 192.168.1.31
+
+
+###
+
+PUT http://{{IPAddressPlayer}}/api/v1/files/sd/
+Accept: */*
+Cache-Control: no-cache
+Connection: keep-alive
+Content-Type: multipart/form-data; boundary=123456789
+
+--123456789
+Content-Disposition: form-data; name="filename"; filename="rlb-plugin-local-html-launch.brs"
+Content-Type: application/octet-stream
+
+< ./rlb-plugin-local-html-launch.brs
+--123456789--
+ 
+ 
+
+###
+
+PUT http://{{IPAddressPlayer}}/api/v1/files/sd/nodeApp
+Accept: */*
+Cache-Control: no-cache
+Connection: keep-alive
+Content-Type: multipart/form-data; boundary=123456789
+
+--123456789
+Content-Disposition: form-data; name="filename"; filename="mic.html"
+Content-Type: application/octet-stream
+
+< ./mic.html
+--123456789--
+ 
+
+
+###
+
+PUT http://{{IPAddressPlayer}}/api/v1/control/reboot
+
+
+###
+
+
+
+
